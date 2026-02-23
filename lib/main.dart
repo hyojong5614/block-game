@@ -666,12 +666,12 @@ class _BoardWidget extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF8A240F), Color(0xFF681608)],
+          colors: [Color(0xFF7B1F0C), Color(0xFF5A1207)],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF4D0F07), width: 2),
+        border: Border.all(color: const Color(0xFF3E0A04), width: 2.4),
         boxShadow: const [
-          BoxShadow(color: Color(0x33000000), blurRadius: 10, offset: Offset(0, 5)),
+          BoxShadow(color: Color(0x33000000), blurRadius: 12, offset: Offset(0, 6)),
         ],
       ),
       child: LayoutBuilder(
@@ -713,29 +713,32 @@ class _BoardWidget extends StatelessWidget {
                       duration: const Duration(milliseconds: 90),
                       width: cellSize,
                       height: cellSize,
-                      child: DecoratedBox(
-                        decoration: _boardCellDecoration(
-                          filled,
-                          isPreviewCell: isPreviewCell,
-                          isValidPreview: isValidPreview,
+                      child: Padding(
+                        padding: const EdgeInsets.all(1.15),
+                        child: DecoratedBox(
+                          decoration: _boardCellDecoration(
+                            filled,
+                            isPreviewCell: isPreviewCell,
+                            isValidPreview: isValidPreview,
+                          ),
+                          child: isClearedFlashCell
+                              ? Container(
+                                  margin: const EdgeInsets.all(1.7),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFE08A).withValues(alpha: 0.9),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                )
+                              : isPlacedFlashCell
+                                  ? Container(
+                                      margin: const EdgeInsets.all(1.7),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.45),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                    )
+                                  : null,
                         ),
-                        child: isClearedFlashCell
-                            ? Container(
-                                margin: const EdgeInsets.all(1.5),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFE08A).withValues(alpha: 0.9),
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                              )
-                            : isPlacedFlashCell
-                                ? Container(
-                                    margin: const EdgeInsets.all(1.5),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.45),
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                  )
-                            : null,
                       ),
                     ),
                   );
@@ -924,11 +927,15 @@ class _FloatingPieceFeedback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _PiecePreview(piece: piece);
+    return _PiecePreview(
+      piece: piece,
+      cellSize: _dragFeedbackPreviewCellSize,
+    );
   }
 }
 
 const double _trayPiecePreviewCellSize = 19;
+const double _dragFeedbackPreviewCellSize = 23;
 const Size _trayDragHitBoxSize = Size(132, 102);
 
 class _TrayDragHitArea extends StatelessWidget {
@@ -954,13 +961,16 @@ class _TrayDragHitArea extends StatelessWidget {
 }
 
 class _PiecePreview extends StatelessWidget {
-  const _PiecePreview({required this.piece});
+  const _PiecePreview({
+    required this.piece,
+    this.cellSize = _trayPiecePreviewCellSize,
+  });
 
   final PieceInstance piece;
+  final double cellSize;
 
   @override
   Widget build(BuildContext context) {
-    const cellSize = _trayPiecePreviewCellSize;
     return SizedBox(
       width: piece.shape.width * cellSize + 6,
       height: piece.shape.height * cellSize + 6,
@@ -1174,10 +1184,11 @@ class ClassicGameController {
     final clearResult = _clearCompletedLines();
     final lineClearCells = clearResult.clearedCount;
     final placedCellCount = piece.shape.cells.length;
-    final lineBonus = lineClearCells * 10;
+    final lineBonus = lineClearCells * 14;
+    final multiLineBonus = clearResult.lineCount * 12;
     combo = lineClearCells > 0 ? combo + 1 : 0;
-    final comboBonus = lineClearCells > 0 ? combo * 5 : 0;
-    score += placedCellCount + lineBonus + comboBonus;
+    final comboBonus = lineClearCells > 0 ? combo * 8 : 0;
+    score += (placedCellCount * 2) + lineBonus + multiLineBonus + comboBonus;
 
     final bestScoreUpdated = score > bestScore;
     if (bestScoreUpdated) {
@@ -1255,7 +1266,11 @@ class ClassicGameController {
       }
     }
 
-    return _ClearResult(clearedCount: cleared.length, clearedCells: cleared);
+    return _ClearResult(
+      clearedCount: cleared.length,
+      lineCount: fullRows.length + fullCols.length,
+      clearedCells: cleared,
+    );
   }
 
   void _refillTray() {
@@ -1265,7 +1280,12 @@ class ClassicGameController {
   }
 
   PieceInstance _randomPiece() {
-    final shapeIndex = _random.nextInt(PieceLibrary.shapes.length);
+    final candidateIndices = _weightedShapeCandidates();
+    final placeableCandidates = candidateIndices.where(_shapeCanBePlacedAnywhere).toList();
+    final pool = placeableCandidates.isNotEmpty && _random.nextDouble() < 0.85
+        ? placeableCandidates
+        : candidateIndices;
+    final shapeIndex = pool[_random.nextInt(pool.length)];
     final colorIndex = _random.nextInt(_pieceColors.length);
     return PieceInstance(
       shape: PieceLibrary.shapes[shapeIndex],
@@ -1273,6 +1293,60 @@ class ClassicGameController {
       shapeIndex: shapeIndex,
       colorIndex: colorIndex,
     );
+  }
+
+  List<int> _weightedShapeCandidates() {
+    final weighted = <int>[];
+    final emptyCells = board.expand((row) => row).where((c) => c == null).length;
+
+    for (var i = 0; i < PieceLibrary.shapes.length; i++) {
+      final shape = PieceLibrary.shapes[i];
+      final maxDim = max(shape.width, shape.height);
+      final cellCount = shape.cells.length;
+
+      // 8x8 mode: remove extra-large shapes that feel unfair on the smaller board.
+      if (maxDim >= 5) continue;
+      if (cellCount >= 9 && score < 500) continue; // delay 3x3 block
+      if (maxDim == 4 && score < 120) continue; // softer early game
+
+      var weight = 1;
+      if (cellCount <= 3) weight += 4;
+      if (cellCount == 4) weight += 2;
+      if (maxDim <= 2) weight += 1;
+      if (emptyCells <= 14 && cellCount <= 3) weight += 5;
+      if (emptyCells <= 10 && maxDim >= 4) weight = max(1, weight - 2);
+
+      for (var w = 0; w < weight; w++) {
+        weighted.add(i);
+      }
+    }
+
+    // Safety fallback if filtering becomes too strict.
+    if (weighted.isEmpty) {
+      for (var i = 0; i < PieceLibrary.shapes.length; i++) {
+        final shape = PieceLibrary.shapes[i];
+        if (max(shape.width, shape.height) < 5) {
+          weighted.add(i);
+        }
+      }
+    }
+    return weighted.isEmpty ? [0] : weighted;
+  }
+
+  bool _shapeCanBePlacedAnywhere(int shapeIndex) {
+    final shape = PieceLibrary.shapes[shapeIndex];
+    final probe = PieceInstance(
+      shape: shape,
+      color: _pieceColors.first,
+      shapeIndex: shapeIndex,
+      colorIndex: 0,
+    );
+    for (var y = 0; y < boardSize; y++) {
+      for (var x = 0; x < boardSize; x++) {
+        if (_canPlace(probe, x, y)) return true;
+      }
+    }
+    return false;
   }
 
   void _recomputeGameOver() {
@@ -1292,9 +1366,14 @@ class ClassicGameController {
 }
 
 class _ClearResult {
-  const _ClearResult({required this.clearedCount, required this.clearedCells});
+  const _ClearResult({
+    required this.clearedCount,
+    required this.lineCount,
+    required this.clearedCells,
+  });
 
   final int clearedCount;
+  final int lineCount;
   final Set<String> clearedCells;
 }
 
@@ -1324,29 +1403,52 @@ BoxDecoration _boardCellDecoration(
 
   return BoxDecoration(
     gradient: const LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [Color(0xFFB15A1B), Color(0xFF7A330A)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFFB25B1E), Color(0xFF8C3E12), Color(0xFF6E2909)],
+      stops: [0.0, 0.58, 1.0],
     ),
-    borderRadius: BorderRadius.circular(4),
-    border: Border.all(color: const Color(0xFF5D2207).withValues(alpha: 0.75)),
+    borderRadius: BorderRadius.circular(4.5),
+    border: Border.all(color: const Color(0xFF5A1F06).withValues(alpha: 0.95)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.white.withValues(alpha: 0.08),
+        offset: const Offset(0, -0.8),
+        blurRadius: 0,
+      ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.28),
+        offset: const Offset(0.8, 1.1),
+        blurRadius: 0,
+      ),
+    ],
   );
 }
 
 BoxDecoration _pieceBlockDecoration(Color base, {double radius = 4}) {
   return BoxDecoration(
     gradient: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [_shiftColor(base, 0.18), base, _shiftColor(base, -0.22)],
-      stops: const [0.0, 0.45, 1.0],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        _shiftColor(base, 0.24),
+        _shiftColor(base, 0.08),
+        _shiftColor(base, -0.10),
+        _shiftColor(base, -0.26),
+      ],
+      stops: const [0.0, 0.28, 0.62, 1.0],
     ),
     borderRadius: BorderRadius.circular(radius),
-    border: Border.all(color: _shiftColor(base, -0.35)),
+    border: Border.all(color: _shiftColor(base, -0.42), width: 1.05),
     boxShadow: [
       BoxShadow(
-        color: Colors.white.withValues(alpha: 0.12),
-        offset: const Offset(0, 1),
+        color: Colors.white.withValues(alpha: 0.20),
+        offset: const Offset(-0.6, -0.6),
+        blurRadius: 0,
+      ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.25),
+        offset: const Offset(0.9, 1.1),
         blurRadius: 0,
       ),
     ],
