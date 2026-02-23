@@ -256,6 +256,8 @@ class _ClassicModePageState extends State<ClassicModePage> {
   Set<String> _recentClearedCells = const {};
   Timer? _placeFlashTimer;
   Timer? _clearFlashTimer;
+  bool _boardPulse = false;
+  Timer? _boardPulseTimer;
   String? _scoreGainText;
   bool _showScoreGain = false;
   Timer? _scoreGainTimer;
@@ -351,8 +353,18 @@ class _ClassicModePageState extends State<ClassicModePage> {
 
     if (result.cleared > 0 && mounted) {
       HapticFeedback.mediumImpact();
+      setState(() {
+        _boardPulse = true;
+      });
+      _boardPulseTimer?.cancel();
+      _boardPulseTimer = Timer(const Duration(milliseconds: 170), () {
+        if (!mounted) return;
+        setState(() {
+          _boardPulse = false;
+        });
+      });
       _clearFlashTimer?.cancel();
-          _clearFlashTimer = Timer(const Duration(milliseconds: 220), () {
+      _clearFlashTimer = Timer(const Duration(milliseconds: 220), () {
         if (!mounted) return;
         setState(() {
           _recentPlacedCells = const {};
@@ -390,6 +402,7 @@ class _ClassicModePageState extends State<ClassicModePage> {
                     _dragGrabCell = null;
                     _recentPlacedCells = const {};
                     _recentClearedCells = const {};
+                    _boardPulse = false;
                     _scoreGainText = null;
                     _showScoreGain = false;
                     _game.reset();
@@ -438,6 +451,7 @@ class _ClassicModePageState extends State<ClassicModePage> {
   void dispose() {
     _placeFlashTimer?.cancel();
     _clearFlashTimer?.cancel();
+    _boardPulseTimer?.cancel();
     _scoreGainTimer?.cancel();
     super.dispose();
   }
@@ -515,6 +529,7 @@ class _ClassicModePageState extends State<ClassicModePage> {
                                 _dragGrabCell = null;
                                 _recentPlacedCells = const {};
                                 _recentClearedCells = const {};
+                                _boardPulse = false;
                                 _scoreGainText = null;
                                 _showScoreGain = false;
                                 _game.reset();
@@ -547,19 +562,24 @@ class _ClassicModePageState extends State<ClassicModePage> {
                       Stack(
                         alignment: Alignment.topCenter,
                         children: [
-                          AspectRatio(
+                        AnimatedScale(
+                          scale: _boardPulse ? 1.012 : 1.0,
+                          duration: const Duration(milliseconds: 130),
+                          curve: Curves.easeOut,
+                          child: AspectRatio(
                             aspectRatio: 1,
                             child: _BoardWidget(
                               game: _game,
-                            hoverAnchor: _hoverAnchor,
-                            dragGrabCell: _dragGrabCell,
-                            recentPlacedCells: _recentPlacedCells,
-                            recentClearedCells: _recentClearedCells,
+                              hoverAnchor: _hoverAnchor,
+                              dragGrabCell: _dragGrabCell,
+                              recentPlacedCells: _recentPlacedCells,
+                              recentClearedCells: _recentClearedCells,
                               onTapCell: _onBoardTap,
                               onHoverAnchor: _onBoardHover,
                               onDropAnchor: _onBoardDrop,
                             ),
                           ),
+                        ),
                           IgnorePointer(
                             child: AnimatedSlide(
                               offset: _showScoreGain ? Offset.zero : const Offset(0, -0.18),
@@ -840,16 +860,29 @@ class _TrayWidget extends StatelessWidget {
                   ),
                   childWhenDragging: Opacity(
                     opacity: 0.25,
-                    child: _PiecePreview(piece: piece),
+                    child: _TrayDragHitArea(
+                      piece: piece,
+                      child: _PiecePreview(piece: piece),
+                    ),
                   ),
                   child: Listener(
                     onPointerDown: (event) {
+                      final previewSize = _piecePreviewSize(piece);
+                      const hitSize = _trayDragHitBoxSize;
+                      final dx = (hitSize.width - previewSize.width) / 2;
+                      final dy = (hitSize.height - previewSize.height) / 2;
                       onDragPointerDown(
                         index,
-                        _grabCellFromLocalOffset(piece, event.localPosition),
+                        _grabCellFromLocalOffset(
+                          piece,
+                          event.localPosition - Offset(dx, dy),
+                        ),
                       );
                     },
-                    child: _PiecePreview(piece: piece),
+                    child: _TrayDragHitArea(
+                      piece: piece,
+                      child: _PiecePreview(piece: piece),
+                    ),
                   ),
                 ),
         );
@@ -897,16 +930,16 @@ class _TrayPieceTile extends StatelessWidget {
               end: Alignment.bottomCenter,
               colors: piece == null
                   ? const [Color(0xFF7A170E), Color(0xFF691107)]
-                  : selected
+                  : (selected && !dimmed)
                       ? const [Color(0xFFA32B12), Color(0xFF78170B)]
                       : const [Color(0xFF8A2110), Color(0xFF6B1409)],
             ),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selected
+              color: (selected && !dimmed)
                   ? const Color(0xFFFFD86B)
                   : Colors.black.withValues(alpha: 0.2),
-              width: selected ? 2 : 1,
+              width: (selected && !dimmed) ? 2 : 1,
             ),
           ),
           child: pieceValue == null
@@ -926,6 +959,24 @@ class _FloatingPieceFeedback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _PiecePreview(piece: piece);
+  }
+}
+
+const Size _trayDragHitBoxSize = Size(96, 96);
+
+class _TrayDragHitArea extends StatelessWidget {
+  const _TrayDragHitArea({required this.piece, required this.child});
+
+  final PieceInstance piece;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _trayDragHitBoxSize.width,
+      height: _trayDragHitBoxSize.height,
+      child: Center(child: child),
+    );
   }
 }
 
@@ -1368,6 +1419,13 @@ Point<int> _grabCellFromLocalOffset(
     }
   }
   return Point<int>(nearest.x, nearest.y);
+}
+
+Size _piecePreviewSize(PieceInstance piece, {double cellSize = 16}) {
+  return Size(
+    piece.shape.width * cellSize + 6,
+    piece.shape.height * cellSize + 6,
+  );
 }
 
 class PieceCell {
