@@ -432,8 +432,8 @@ class _ClassicModePageState extends State<ClassicModePage> {
     final helperText = _draggingTrayIndex != null
         ? '드래그 중: 보드에 놓아 배치하세요'
         : selected == null
-            ? '조각을 탭하거나 길게 눌러 드래그하세요'
-            : '보드를 탭하거나 드래그로 배치하세요';
+            ? '아래 조각을 드래그해서 보드로 옮기세요'
+            : '조각을 드래그해서 보드에 배치하세요';
 
     return Scaffold(
       appBar: AppBar(
@@ -755,7 +755,7 @@ class _TrayWidget extends StatelessWidget {
         );
 
         if (piece != null) {
-          tile = LongPressDraggable<TrayDragData>(
+          tile = Draggable<TrayDragData>(
             data: TrayDragData(index: index, piece: piece),
             dragAnchorStrategy: pointerDragAnchorStrategy,
             onDragStarted: () => onDragStart(index),
