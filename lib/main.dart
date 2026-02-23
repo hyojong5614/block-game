@@ -927,15 +927,18 @@ class _FloatingPieceFeedback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _PiecePreview(
-      piece: piece,
-      cellSize: _dragFeedbackPreviewCellSize,
+    return Transform.scale(
+      scale: 1.05,
+      child: _PiecePreview(
+        piece: piece,
+        cellSize: _dragFeedbackPreviewCellSize,
+      ),
     );
   }
 }
 
 const double _trayPiecePreviewCellSize = 19;
-const double _dragFeedbackPreviewCellSize = 23;
+const double _dragFeedbackPreviewCellSize = 26;
 const Size _trayDragHitBoxSize = Size(132, 102);
 
 class _TrayDragHitArea extends StatelessWidget {
@@ -1035,12 +1038,12 @@ class ClassicGameController {
   bool isGameOver = false;
 
   final List<Color> _pieceColors = const [
-    Color(0xFFE32A18), // red
-    Color(0xFFF3C400), // yellow
-    Color(0xFFC67624), // brown/orange
-    Color(0xFFED3A20), // bright red
-    Color(0xFFF0CB19), // bright yellow
-    Color(0xFFB8671D), // deep brown
+    Color(0xFFE92519), // vivid red
+    Color(0xFFFFD200), // vivid yellow
+    Color(0xFFFFB327), // bright amber
+    Color(0xFFFF3A21), // bright red-orange
+    Color(0xFFFFE24C), // pale bright yellow
+    Color(0xFFFF8A2A), // orange
   ];
 
   void reset() {
@@ -1383,7 +1386,7 @@ BoxDecoration _boardCellDecoration(
   required bool isValidPreview,
 }) {
   if (filled != null) {
-    return _pieceBlockDecoration(filled, radius: 4);
+    return _pieceBlockDecoration(filled, radius: 1.2);
   }
 
   if (isPreviewCell) {
@@ -1392,7 +1395,7 @@ BoxDecoration _boardCellDecoration(
         : const Color(0xFFFF6D5E).withValues(alpha: 0.35);
     return BoxDecoration(
       color: previewColor,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(1.2),
       border: Border.all(
         color: isValidPreview
             ? const Color(0xFFFFF2B8).withValues(alpha: 0.8)
@@ -1403,22 +1406,22 @@ BoxDecoration _boardCellDecoration(
 
   return BoxDecoration(
     gradient: const LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Color(0xFFB25B1E), Color(0xFF8C3E12), Color(0xFF6E2909)],
-      stops: [0.0, 0.58, 1.0],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFF7A3410), Color(0xFF64260B), Color(0xFF542006)],
+      stops: [0.0, 0.45, 1.0],
     ),
-    borderRadius: BorderRadius.circular(4.5),
-    border: Border.all(color: const Color(0xFF5A1F06).withValues(alpha: 0.95)),
+    borderRadius: BorderRadius.circular(1.4),
+    border: Border.all(color: const Color(0xFF351204), width: 1.1),
     boxShadow: [
       BoxShadow(
-        color: Colors.white.withValues(alpha: 0.08),
-        offset: const Offset(0, -0.8),
+        color: Colors.white.withValues(alpha: 0.04),
+        offset: const Offset(-0.6, -0.6),
         blurRadius: 0,
       ),
       BoxShadow(
-        color: Colors.black.withValues(alpha: 0.28),
-        offset: const Offset(0.8, 1.1),
+        color: Colors.black.withValues(alpha: 0.34),
+        offset: const Offset(1.1, 1.2),
         blurRadius: 0,
       ),
     ],
@@ -1428,27 +1431,27 @@ BoxDecoration _boardCellDecoration(
 BoxDecoration _pieceBlockDecoration(Color base, {double radius = 4}) {
   return BoxDecoration(
     gradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
       colors: [
-        _shiftColor(base, 0.24),
-        _shiftColor(base, 0.08),
-        _shiftColor(base, -0.10),
-        _shiftColor(base, -0.26),
+        _shiftColor(base, 0.22),
+        _shiftColor(base, 0.06),
+        _shiftColor(base, -0.08),
+        _shiftColor(base, -0.22),
       ],
-      stops: const [0.0, 0.28, 0.62, 1.0],
+      stops: const [0.0, 0.16, 0.62, 1.0],
     ),
     borderRadius: BorderRadius.circular(radius),
-    border: Border.all(color: _shiftColor(base, -0.42), width: 1.05),
+    border: Border.all(color: _shiftColor(base, -0.48), width: 1.25),
     boxShadow: [
       BoxShadow(
-        color: Colors.white.withValues(alpha: 0.20),
-        offset: const Offset(-0.6, -0.6),
+        color: Colors.white.withValues(alpha: 0.28),
+        offset: const Offset(-0.8, -0.8),
         blurRadius: 0,
       ),
       BoxShadow(
-        color: Colors.black.withValues(alpha: 0.25),
-        offset: const Offset(0.9, 1.1),
+        color: Colors.black.withValues(alpha: 0.32),
+        offset: const Offset(1.2, 1.3),
         blurRadius: 0,
       ),
     ],
