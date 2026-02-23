@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,8 +15,8 @@ void main() {
     await tester.tap(find.text('Classic'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Classic Block Puzzle'), findsOneWidget);
-    expect(find.text('점수'), findsOneWidget);
-    expect(find.text('최고점수'), findsOneWidget);
+    expect(find.text('No Space Left'), findsNothing);
+    expect(find.text('Block Game'), findsNothing);
+    expect(find.byIcon(Icons.settings), findsOneWidget);
   });
 }

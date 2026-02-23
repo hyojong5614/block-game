@@ -251,6 +251,7 @@ class _ClassicModePageState extends State<ClassicModePage> {
 
   Point<int>? _hoverAnchor;
   int? _draggingTrayIndex;
+  Point<int>? _dragGrabCell;
   Set<String> _recentClearedCells = const {};
   Timer? _clearFlashTimer;
   String? _scoreGainText;
@@ -397,6 +398,7 @@ class _ClassicModePageState extends State<ClassicModePage> {
     setState(() {
       _draggingTrayIndex = trayIndex;
       _game.selectedTrayIndex = trayIndex;
+      _dragGrabCell ??= const Point<int>(0, 0);
     });
   }
 
@@ -405,6 +407,15 @@ class _ClassicModePageState extends State<ClassicModePage> {
     setState(() {
       _draggingTrayIndex = null;
       _hoverAnchor = null;
+      _dragGrabCell = null;
+    });
+  }
+
+  void _onDragPointerDown(int trayIndex, Point<int> grabCell) {
+    if (!mounted) return;
+    setState(() {
+      _dragGrabCell = grabCell;
+      _game.selectedTrayIndex = trayIndex;
     });
   }
 
@@ -436,109 +447,187 @@ class _ClassicModePageState extends State<ClassicModePage> {
             : '조각을 드래그해서 보드에 배치하세요';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Classic Block Puzzle'),
-        actions: [
-          IconButton(
-            tooltip: 'Restart',
-            onPressed: () {
-              setState(() {
-                _hoverAnchor = null;
-                _draggingTrayIndex = null;
-                _recentClearedCells = const {};
-                _scoreGainText = null;
-                _showScoreGain = false;
-                _game.reset();
-              });
-              _saveCurrentGame();
-              HapticFeedback.lightImpact();
-            },
-            icon: const Icon(Icons.refresh),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFC83A20), Color(0xFFB82E18), Color(0xFFA32715)],
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    _ScorePanel(game: _game),
-                    const SizedBox(height: 16),
-                    Stack(
-                      alignment: Alignment.topCenter,
-                      children: [
-                        AspectRatio(
-                          aspectRatio: 1,
-                          child: _BoardWidget(
-                            game: _game,
-                            hoverAnchor: _hoverAnchor,
-                            recentClearedCells: _recentClearedCells,
-                            onTapCell: _onBoardTap,
-                            onHoverAnchor: _onBoardHover,
-                            onDropAnchor: _onBoardDrop,
+        ),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: Colors.black.withValues(alpha: 0.12)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.workspace_premium, color: Color(0xFFFFD21F), size: 22),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${_game.bestScore}',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFD21F),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: 'Restart',
+                            onPressed: () {
+                              setState(() {
+                                _hoverAnchor = null;
+                                _draggingTrayIndex = null;
+                                _dragGrabCell = null;
+                                _recentClearedCells = const {};
+                                _scoreGainText = null;
+                                _showScoreGain = false;
+                                _game.reset();
+                              });
+                              _saveCurrentGame();
+                              HapticFeedback.lightImpact();
+                            },
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black.withValues(alpha: 0.12),
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: const Icon(Icons.settings, size: 28),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      Text(
+                        '${_game.score}',
+                        style: const TextStyle(
+                          fontSize: 64,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 0.95,
+                          shadows: [
+                            Shadow(color: Colors.black38, offset: Offset(0, 3), blurRadius: 6),
+                          ],
                         ),
-                        IgnorePointer(
-                          child: AnimatedSlide(
-                            offset: _showScoreGain ? Offset.zero : const Offset(0, -0.18),
-                            duration: const Duration(milliseconds: 180),
-                            child: AnimatedOpacity(
-                              opacity: _showScoreGain && _scoreGainText != null ? 1 : 0,
+                      ),
+                      const SizedBox(height: 18),
+                      Stack(
+                        alignment: Alignment.topCenter,
+                        children: [
+                          AspectRatio(
+                            aspectRatio: 1,
+                            child: _BoardWidget(
+                              game: _game,
+                            hoverAnchor: _hoverAnchor,
+                            dragGrabCell: _dragGrabCell,
+                            recentClearedCells: _recentClearedCells,
+                              onTapCell: _onBoardTap,
+                              onHoverAnchor: _onBoardHover,
+                              onDropAnchor: _onBoardDrop,
+                            ),
+                          ),
+                          IgnorePointer(
+                            child: AnimatedSlide(
+                              offset: _showScoreGain ? Offset.zero : const Offset(0, -0.18),
                               duration: const Duration(milliseconds: 180),
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF102A22).withValues(alpha: 0.94),
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
-                                      color: const Color(0xFF2EE6B4).withValues(alpha: 0.55),
+                              child: AnimatedOpacity(
+                                opacity: _showScoreGain && _scoreGainText != null ? 1 : 0,
+                                duration: const Duration(milliseconds: 180),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF6F130A).withValues(alpha: 0.95),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
                                     ),
-                                  ),
-                                  child: Text(
-                                    _scoreGainText ?? '',
-                                    style: const TextStyle(
-                                      color: Color(0xFF6EF2CC),
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16,
+                                    child: Text(
+                                      _scoreGainText ?? '',
+                                      style: const TextStyle(
+                                        color: Color(0xFFFFF1A5),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      helperText,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontWeight: FontWeight.w600,
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    _TrayWidget(
-                      game: _game,
-                      draggingTrayIndex: _draggingTrayIndex,
-                      onSelect: (index) => setState(() {
-                        _game.toggleTraySelection(index);
-                        _hoverAnchor = null;
-                      }),
-                      onDragStart: _onDragStart,
-                      onDragEnd: _onDragEnd,
-                    ),
-                  ],
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF7A170E).withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _game.isGameOver ? Icons.warning_amber_rounded : Icons.touch_app_rounded,
+                              color: _game.isGameOver ? const Color(0xFFFFD86B) : Colors.white,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _game.isGameOver ? 'No Space Left' : helperText,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF8C1E11), Color(0xFF73160E)],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
+                        ),
+                        child: _TrayWidget(
+                          game: _game,
+                          draggingTrayIndex: _draggingTrayIndex,
+                          currentGrabCell: _dragGrabCell,
+                          onSelect: (index) => setState(() {
+                            _game.toggleTraySelection(index);
+                            _hoverAnchor = null;
+                          }),
+                          onDragStart: _onDragStart,
+                          onDragEnd: _onDragEnd,
+                          onDragPointerDown: _onDragPointerDown,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -549,62 +638,11 @@ class _ClassicModePageState extends State<ClassicModePage> {
   }
 }
 
-class _ScorePanel extends StatelessWidget {
-  const _ScorePanel({required this.game});
-
-  final ClassicGameController game;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: _StatCard(label: '점수', value: '${game.score}')),
-        const SizedBox(width: 12),
-        Expanded(child: _StatCard(label: '최고점수', value: '${game.bestScore}')),
-        const SizedBox(width: 12),
-        Expanded(child: _StatCard(label: '연속 제거', value: '${game.combo}')),
-      ],
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121A2B),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        children: [
-          Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.72))),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _BoardWidget extends StatelessWidget {
   const _BoardWidget({
     required this.game,
     required this.hoverAnchor,
+    required this.dragGrabCell,
     required this.recentClearedCells,
     required this.onTapCell,
     required this.onHoverAnchor,
@@ -613,6 +651,7 @@ class _BoardWidget extends StatelessWidget {
 
   final ClassicGameController game;
   final Point<int>? hoverAnchor;
+  final Point<int>? dragGrabCell;
   final Set<String> recentClearedCells;
   final void Function(int x, int y) onTapCell;
   final void Function(Point<int>? anchor) onHoverAnchor;
@@ -621,11 +660,18 @@ class _BoardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF121A2B),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF8A240F), Color(0xFF681608)],
+        ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: const Color(0xFF4D0F07), width: 2),
+        boxShadow: const [
+          BoxShadow(color: Color(0x33000000), blurRadius: 10, offset: Offset(0, 5)),
+        ],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -634,7 +680,7 @@ class _BoardWidget extends StatelessWidget {
           final isValidPreview = hoverAnchor != null &&
               game.canPlaceSelectedAt(hoverAnchor!.x, hoverAnchor!.y);
 
-          Point<int>? pointForGlobalOffset(Offset globalOffset) {
+          Point<int>? pointForGlobalOffset(Offset globalOffset, Point<int> grabbedCell) {
             final box = context.findRenderObject();
             if (box is! RenderBox) return null;
             final local = box.globalToLocal(globalOffset);
@@ -642,8 +688,8 @@ class _BoardWidget extends StatelessWidget {
             if (local.dx >= constraints.maxWidth || local.dy >= constraints.maxHeight) {
               return null;
             }
-            final x = (local.dx / cellSize).floor();
-            final y = (local.dy / cellSize).floor();
+            final x = (local.dx / cellSize).floor() - grabbedCell.x;
+            final y = (local.dy / cellSize).floor() - grabbedCell.y;
             if (x < 0 || y < 0 || x >= ClassicGameController.boardSize || y >= ClassicGameController.boardSize) {
               return null;
             }
@@ -657,13 +703,6 @@ class _BoardWidget extends StatelessWidget {
                   final filled = game.board[y][x];
                   final isPreviewCell = preview?.contains('$x,$y') ?? false;
                   final isClearedFlashCell = recentClearedCells.contains('$x,$y');
-                  final cellColor = filled ??
-                      (isPreviewCell
-                          ? (isValidPreview
-                              ? Colors.white.withValues(alpha: 0.14)
-                              : Colors.redAccent.withValues(alpha: 0.18))
-                          : const Color(0xFF1A2438));
-
                   return GestureDetector(
                     onTap: () => onTapCell(x, y),
                     child: AnimatedContainer(
@@ -671,18 +710,10 @@ class _BoardWidget extends StatelessWidget {
                       width: cellSize,
                       height: cellSize,
                       child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: cellColor,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: isPreviewCell
-                                ? (isValidPreview
-                                    ? Colors.white.withValues(alpha: 0.35)
-                                    : Colors.redAccent.withValues(alpha: 0.5))
-                                : filled != null
-                                    ? Colors.white.withValues(alpha: 0.2)
-                                    : Colors.white.withValues(alpha: 0.04),
-                          ),
+                        decoration: _boardCellDecoration(
+                          filled,
+                          isPreviewCell: isPreviewCell,
+                          isValidPreview: isValidPreview,
                         ),
                         child: isClearedFlashCell
                             ? Container(
@@ -704,11 +735,13 @@ class _BoardWidget extends StatelessWidget {
           return DragTarget<TrayDragData>(
             onWillAcceptWithDetails: (_) => !game.isGameOver,
             onMove: (details) {
-              onHoverAnchor(pointForGlobalOffset(details.offset));
+              onHoverAnchor(
+                pointForGlobalOffset(details.offset, details.data.grabCell),
+              );
             },
             onLeave: (_) => onHoverAnchor(null),
             onAcceptWithDetails: (details) {
-              final point = pointForGlobalOffset(details.offset);
+              final point = pointForGlobalOffset(details.offset, details.data.grabCell);
               onHoverAnchor(null);
               if (point != null) {
                 onDropAnchor(point);
@@ -728,16 +761,20 @@ class _TrayWidget extends StatelessWidget {
   const _TrayWidget({
     required this.game,
     required this.draggingTrayIndex,
+    required this.currentGrabCell,
     required this.onSelect,
     required this.onDragStart,
     required this.onDragEnd,
+    required this.onDragPointerDown,
   });
 
   final ClassicGameController game;
   final int? draggingTrayIndex;
+  final Point<int>? currentGrabCell;
   final void Function(int index) onSelect;
   final void Function(int index) onDragStart;
   final VoidCallback onDragEnd;
+  final void Function(int index, Point<int> grabCell) onDragPointerDown;
 
   @override
   Widget build(BuildContext context) {
@@ -747,35 +784,47 @@ class _TrayWidget extends StatelessWidget {
         final selected = game.selectedTrayIndex == index;
         final isDragging = draggingTrayIndex == index;
 
-        Widget tile = _TrayPieceTile(
+        final Widget tile = _TrayPieceTile(
           piece: piece,
           selected: selected,
           dimmed: isDragging,
           onTap: piece == null ? null : () => onSelect(index),
+          draggable: piece == null
+              ? null
+              : Draggable<TrayDragData>(
+                  data: TrayDragData(
+                    index: index,
+                    piece: piece,
+                    grabCell: (game.selectedTrayIndex == index && currentGrabCell != null)
+                        ? currentGrabCell!
+                        : _defaultGrabCellForPiece(piece),
+                  ),
+                  dragAnchorStrategy: childDragAnchorStrategy,
+                  feedbackOffset: Offset.zero,
+                  onDragStarted: () => onDragStart(index),
+                  onDragEnd: (_) => onDragEnd(),
+                  feedback: Material(
+                    type: MaterialType.transparency,
+                    child: Transform.scale(
+                      scale: 1.06,
+                      child: _FloatingPieceFeedback(piece: piece),
+                    ),
+                  ),
+                  childWhenDragging: Opacity(
+                    opacity: 0.25,
+                    child: _PiecePreview(piece: piece),
+                  ),
+                  child: Listener(
+                    onPointerDown: (event) {
+                      onDragPointerDown(
+                        index,
+                        _grabCellFromLocalOffset(piece, event.localPosition),
+                      );
+                    },
+                    child: _PiecePreview(piece: piece),
+                  ),
+                ),
         );
-
-        if (piece != null) {
-          tile = Draggable<TrayDragData>(
-            data: TrayDragData(index: index, piece: piece),
-            dragAnchorStrategy: pointerDragAnchorStrategy,
-            onDragStarted: () => onDragStart(index),
-            onDragEnd: (_) => onDragEnd(),
-            feedback: Material(
-              type: MaterialType.transparency,
-              child: Transform.scale(
-                scale: 1.08,
-                child: _FloatingPieceFeedback(piece: piece),
-              ),
-            ),
-            childWhenDragging: _TrayPieceTile(
-              piece: piece,
-              selected: selected,
-              dimmed: true,
-              onTap: () => onSelect(index),
-            ),
-            child: tile,
-          );
-        }
 
         return Expanded(
           child: Padding(
@@ -794,12 +843,14 @@ class _TrayPieceTile extends StatelessWidget {
     required this.selected,
     required this.dimmed,
     required this.onTap,
+    required this.draggable,
   });
 
   final PieceInstance? piece;
   final bool selected;
   final bool dimmed;
   final VoidCallback? onTap;
+  final Widget? draggable;
 
   @override
   Widget build(BuildContext context) {
@@ -813,16 +864,20 @@ class _TrayPieceTile extends StatelessWidget {
           duration: const Duration(milliseconds: 160),
           height: 112,
           decoration: BoxDecoration(
-            color: piece == null
-                ? const Color(0xFF111726)
-                : selected
-                    ? const Color(0xFF1B2A43)
-                    : const Color(0xFF121A2B),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: piece == null
+                  ? const [Color(0xFF7A170E), Color(0xFF691107)]
+                  : selected
+                      ? const [Color(0xFFA32B12), Color(0xFF78170B)]
+                      : const [Color(0xFF8A2110), Color(0xFF6B1409)],
+            ),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected
-                  ? const Color(0xFF2EE6B4)
-                  : Colors.white.withValues(alpha: 0.08),
+                  ? const Color(0xFFFFD86B)
+                  : Colors.black.withValues(alpha: 0.2),
               width: selected ? 2 : 1,
             ),
           ),
@@ -833,7 +888,7 @@ class _TrayPieceTile extends StatelessWidget {
                     style: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
                   ),
                 )
-              : Center(child: _PiecePreview(piece: pieceValue)),
+              : Center(child: draggable ?? _PiecePreview(piece: pieceValue)),
         ),
       ),
     );
@@ -850,9 +905,9 @@ class _FloatingPieceFeedback extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF121A2B).withValues(alpha: 0.92),
+        color: const Color(0xFF7A170E).withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
         boxShadow: const [
           BoxShadow(color: Colors.black54, blurRadius: 18, offset: Offset(0, 8)),
         ],
@@ -881,11 +936,7 @@ class _PiecePreview extends StatelessWidget {
             child: Container(
               width: cellSize - 2,
               height: cellSize - 2,
-              decoration: BoxDecoration(
-                color: piece.color,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-              ),
+              decoration: _pieceBlockDecoration(piece.color, radius: 4),
             ),
           );
         }).toList(),
@@ -895,10 +946,15 @@ class _PiecePreview extends StatelessWidget {
 }
 
 class TrayDragData {
-  const TrayDragData({required this.index, required this.piece});
+  const TrayDragData({
+    required this.index,
+    required this.piece,
+    required this.grabCell,
+  });
 
   final int index;
   final PieceInstance piece;
+  final Point<int> grabCell;
 }
 
 class PlacementResult {
@@ -931,13 +987,12 @@ class ClassicGameController {
   bool isGameOver = false;
 
   final List<Color> _pieceColors = const [
-    Color(0xFF5EEAD4),
-    Color(0xFF60A5FA),
-    Color(0xFFF59E0B),
-    Color(0xFFF472B6),
-    Color(0xFF34D399),
-    Color(0xFFA78BFA),
-    Color(0xFFF87171),
+    Color(0xFFE32A18), // red
+    Color(0xFFF3C400), // yellow
+    Color(0xFFC67624), // brown/orange
+    Color(0xFFED3A20), // bright red
+    Color(0xFFF0CB19), // bright yellow
+    Color(0xFFB8671D), // deep brown
   ];
 
   void reset() {
@@ -1200,6 +1255,102 @@ class _ClearResult {
 
   final int clearedCount;
   final Set<String> clearedCells;
+}
+
+BoxDecoration _boardCellDecoration(
+  Color? filled, {
+  required bool isPreviewCell,
+  required bool isValidPreview,
+}) {
+  if (filled != null) {
+    return _pieceBlockDecoration(filled, radius: 4);
+  }
+
+  if (isPreviewCell) {
+    final previewColor = isValidPreview
+        ? const Color(0xFFFFE27A).withValues(alpha: 0.35)
+        : const Color(0xFFFF6D5E).withValues(alpha: 0.35);
+    return BoxDecoration(
+      color: previewColor,
+      borderRadius: BorderRadius.circular(4),
+      border: Border.all(
+        color: isValidPreview
+            ? const Color(0xFFFFF2B8).withValues(alpha: 0.8)
+            : const Color(0xFFFFB2AC).withValues(alpha: 0.85),
+      ),
+    );
+  }
+
+  return BoxDecoration(
+    gradient: const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFFB15A1B), Color(0xFF7A330A)],
+    ),
+    borderRadius: BorderRadius.circular(4),
+    border: Border.all(color: const Color(0xFF5D2207).withValues(alpha: 0.75)),
+  );
+}
+
+BoxDecoration _pieceBlockDecoration(Color base, {double radius = 4}) {
+  return BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [_shiftColor(base, 0.18), base, _shiftColor(base, -0.22)],
+      stops: const [0.0, 0.45, 1.0],
+    ),
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: _shiftColor(base, -0.35)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.white.withValues(alpha: 0.12),
+        offset: const Offset(0, 1),
+        blurRadius: 0,
+      ),
+    ],
+  );
+}
+
+Color _shiftColor(Color color, double amount) {
+  final hsl = HSLColor.fromColor(color);
+  final lightness = (hsl.lightness + amount).clamp(0.0, 1.0);
+  return hsl.withLightness(lightness).toColor();
+}
+
+Point<int> _defaultGrabCellForPiece(PieceInstance piece) {
+  final first = piece.shape.cells.first;
+  return Point<int>(first.x, first.y);
+}
+
+Point<int> _grabCellFromLocalOffset(
+  PieceInstance piece,
+  Offset localPosition, {
+  double cellSize = 16,
+}) {
+  final rawX = (localPosition.dx / cellSize).floor();
+  final rawY = (localPosition.dy / cellSize).floor();
+
+  for (final cell in piece.shape.cells) {
+    if (cell.x == rawX && cell.y == rawY) {
+      return Point<int>(cell.x, cell.y);
+    }
+  }
+
+  PieceCell nearest = piece.shape.cells.first;
+  double nearestDistance = double.infinity;
+  for (final cell in piece.shape.cells) {
+    final cx = (cell.x + 0.5) * cellSize;
+    final cy = (cell.y + 0.5) * cellSize;
+    final dx = localPosition.dx - cx;
+    final dy = localPosition.dy - cy;
+    final distance = dx * dx + dy * dy;
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = cell;
+    }
+  }
+  return Point<int>(nearest.x, nearest.y);
 }
 
 class PieceCell {
