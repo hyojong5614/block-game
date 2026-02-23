@@ -469,13 +469,6 @@ class _ClassicModePageState extends State<ClassicModePage> {
 
   @override
   Widget build(BuildContext context) {
-    final selected = _game.selectedTrayIndex;
-    final helperText = _draggingTrayIndex != null
-        ? '드래그 중: 보드에 놓아 배치하세요'
-        : selected == null
-            ? '아래 조각을 드래그해서 보드로 옮기세요'
-            : '조각을 드래그해서 보드에 배치하세요';
-
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -614,35 +607,6 @@ class _ClassicModePageState extends State<ClassicModePage> {
                       const SizedBox(height: 14),
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF7A170E).withValues(alpha: 0.9),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _game.isGameOver ? Icons.warning_amber_rounded : Icons.touch_app_rounded,
-                              color: _game.isGameOver ? const Color(0xFFFFD86B) : Colors.white,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _game.isGameOver ? 'No Space Left' : helperText,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Container(
-                        width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -655,10 +619,7 @@ class _ClassicModePageState extends State<ClassicModePage> {
                           game: _game,
                           draggingTrayIndex: _draggingTrayIndex,
                           currentGrabCell: _dragGrabCell,
-                          onSelect: (index) => setState(() {
-                            _game.toggleTraySelection(index);
-                            _hoverAnchor = null;
-                          }),
+                          onSelect: (_) {},
                           onDragStart: _onDragStart,
                           onDragEnd: _onDragEnd,
                           onDragPointerDown: _onDragPointerDown,
@@ -916,9 +877,7 @@ class _TrayPieceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pieceValue = piece;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedOpacity(
+    final tileBody = AnimatedOpacity(
         duration: const Duration(milliseconds: 120),
         opacity: dimmed ? 0.35 : 1,
         child: AnimatedContainer(
@@ -946,8 +905,15 @@ class _TrayPieceTile extends StatelessWidget {
               ? const SizedBox.expand()
               : Center(child: draggable ?? _PiecePreview(piece: pieceValue)),
         ),
-      ),
-    );
+      );
+
+    if (pieceValue != null) {
+      // Avoid competing tap recognizers for active tray pieces so drag starts
+      // immediately on the first touch.
+      return tileBody;
+    }
+
+    return GestureDetector(onTap: onTap, child: tileBody);
   }
 }
 
@@ -962,7 +928,8 @@ class _FloatingPieceFeedback extends StatelessWidget {
   }
 }
 
-const Size _trayDragHitBoxSize = Size(96, 96);
+const double _trayPiecePreviewCellSize = 19;
+const Size _trayDragHitBoxSize = Size(132, 102);
 
 class _TrayDragHitArea extends StatelessWidget {
   const _TrayDragHitArea({required this.piece, required this.child});
@@ -972,10 +939,16 @@ class _TrayDragHitArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: _trayDragHitBoxSize.width,
-      height: _trayDragHitBoxSize.height,
-      child: Center(child: child),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = min(_trayDragHitBoxSize.width, constraints.maxWidth);
+        final height = min(_trayDragHitBoxSize.height, constraints.maxHeight);
+        return SizedBox(
+          width: width,
+          height: height,
+          child: Center(child: child),
+        );
+      },
     );
   }
 }
@@ -987,7 +960,7 @@ class _PiecePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const cellSize = 16.0;
+    const cellSize = _trayPiecePreviewCellSize;
     return SizedBox(
       width: piece.shape.width * cellSize + 6,
       height: piece.shape.height * cellSize + 6,
@@ -1039,7 +1012,7 @@ class PlacementResult {
 }
 
 class ClassicGameController {
-  static const int boardSize = 10;
+  static const int boardSize = 8;
 
   final Random _random = Random();
 
@@ -1393,9 +1366,9 @@ Point<int> _defaultGrabCellForPiece(PieceInstance piece) {
 
 Point<int> _grabCellFromLocalOffset(
   PieceInstance piece,
-  Offset localPosition, {
-  double cellSize = 16,
-}) {
+  Offset localPosition,
+) {
+  const cellSize = _trayPiecePreviewCellSize;
   final rawX = (localPosition.dx / cellSize).floor();
   final rawY = (localPosition.dy / cellSize).floor();
 
@@ -1421,7 +1394,8 @@ Point<int> _grabCellFromLocalOffset(
   return Point<int>(nearest.x, nearest.y);
 }
 
-Size _piecePreviewSize(PieceInstance piece, {double cellSize = 16}) {
+Size _piecePreviewSize(PieceInstance piece) {
+  const cellSize = _trayPiecePreviewCellSize;
   return Size(
     piece.shape.width * cellSize + 6,
     piece.shape.height * cellSize + 6,
