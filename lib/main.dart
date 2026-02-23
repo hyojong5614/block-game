@@ -798,6 +798,15 @@ class _TrayWidget extends StatelessWidget {
         final piece = game.tray[index];
         final selected = game.selectedTrayIndex == index;
         final isDragging = draggingTrayIndex == index;
+        final dragData = piece == null
+            ? null
+            : TrayDragData(
+                index: index,
+                piece: piece,
+                grabCell: (game.selectedTrayIndex == index && currentGrabCell != null)
+                    ? currentGrabCell!
+                    : _defaultGrabCellForPiece(piece),
+              );
 
         final Widget tile = _TrayPieceTile(
           piece: piece,
@@ -807,13 +816,7 @@ class _TrayWidget extends StatelessWidget {
           draggable: piece == null
               ? null
               : Draggable<TrayDragData>(
-                  data: TrayDragData(
-                    index: index,
-                    piece: piece,
-                    grabCell: (game.selectedTrayIndex == index && currentGrabCell != null)
-                        ? currentGrabCell!
-                        : _defaultGrabCellForPiece(piece),
-                  ),
+                  data: dragData!,
                   dragAnchorStrategy: childDragAnchorStrategy,
                   feedbackOffset: Offset.zero,
                   onDragStarted: () => onDragStart(index),
@@ -824,29 +827,26 @@ class _TrayWidget extends StatelessWidget {
                   ),
                   childWhenDragging: Opacity(
                     opacity: 0.25,
-                    child: _TrayDragHitArea(
+                    child: _TrayDragSurface(
                       piece: piece,
                       child: _PiecePreview(piece: piece),
                     ),
                   ),
-                  child: Listener(
-                    onPointerDown: (event) {
+                  child: _TrayDragSurface(
+                    piece: piece,
+                    onPointerDown: (localPosition) {
                       final previewSize = _piecePreviewSize(piece);
-                      const hitSize = _trayDragHitBoxSize;
-                      final dx = (hitSize.width - previewSize.width) / 2;
-                      final dy = (hitSize.height - previewSize.height) / 2;
-                      onDragPointerDown(
-                        index,
-                        _grabCellFromLocalOffset(
-                          piece,
-                          event.localPosition - Offset(dx, dy),
-                        ),
+                      final boxSize = _trayDragHitBoxSize;
+                      final dx = (boxSize.width - previewSize.width) / 2;
+                      final dy = (boxSize.height - previewSize.height) / 2;
+                      final grabCell = _grabCellFromLocalOffset(
+                        piece,
+                        localPosition - Offset(dx, dy),
                       );
+                      dragData.grabCell = grabCell;
+                      onDragPointerDown(index, grabCell);
                     },
-                    child: _TrayDragHitArea(
-                      piece: piece,
-                      child: _PiecePreview(piece: piece),
-                    ),
+                    child: _PiecePreview(piece: piece),
                   ),
                 ),
         );
@@ -941,11 +941,16 @@ const double _trayPiecePreviewCellSize = 19;
 const double _dragFeedbackPreviewCellSize = 26;
 const Size _trayDragHitBoxSize = Size(132, 102);
 
-class _TrayDragHitArea extends StatelessWidget {
-  const _TrayDragHitArea({required this.piece, required this.child});
+class _TrayDragSurface extends StatelessWidget {
+  const _TrayDragSurface({
+    required this.piece,
+    required this.child,
+    this.onPointerDown,
+  });
 
   final PieceInstance piece;
   final Widget child;
+  final ValueChanged<Offset>? onPointerDown;
 
   @override
   Widget build(BuildContext context) {
@@ -953,10 +958,14 @@ class _TrayDragHitArea extends StatelessWidget {
       builder: (context, constraints) {
         final width = min(_trayDragHitBoxSize.width, constraints.maxWidth);
         final height = min(_trayDragHitBoxSize.height, constraints.maxHeight);
-        return SizedBox(
-          width: width,
-          height: height,
-          child: Center(child: child),
+        return Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: onPointerDown == null ? null : (e) => onPointerDown!(e.localPosition),
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Center(child: child),
+          ),
         );
       },
     );
@@ -995,7 +1004,7 @@ class _PiecePreview extends StatelessWidget {
 }
 
 class TrayDragData {
-  const TrayDragData({
+  TrayDragData({
     required this.index,
     required this.piece,
     required this.grabCell,
@@ -1003,7 +1012,7 @@ class TrayDragData {
 
   final int index;
   final PieceInstance piece;
-  final Point<int> grabCell;
+  Point<int> grabCell;
 }
 
 class PlacementResult {
@@ -1408,20 +1417,20 @@ BoxDecoration _boardCellDecoration(
     gradient: const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [Color(0xFF7A3410), Color(0xFF64260B), Color(0xFF542006)],
-      stops: [0.0, 0.45, 1.0],
+      colors: [Color(0xFF6E2C0B), Color(0xFF572006), Color(0xFF451804)],
+      stops: [0.0, 0.42, 1.0],
     ),
     borderRadius: BorderRadius.circular(1.4),
-    border: Border.all(color: const Color(0xFF351204), width: 1.1),
+    border: Border.all(color: const Color(0xFF2B0C02), width: 1.15),
     boxShadow: [
       BoxShadow(
-        color: Colors.white.withValues(alpha: 0.04),
-        offset: const Offset(-0.6, -0.6),
+        color: Colors.white.withValues(alpha: 0.025),
+        offset: const Offset(-0.7, -0.7),
         blurRadius: 0,
       ),
       BoxShadow(
-        color: Colors.black.withValues(alpha: 0.34),
-        offset: const Offset(1.1, 1.2),
+        color: Colors.black.withValues(alpha: 0.42),
+        offset: const Offset(1.3, 1.35),
         blurRadius: 0,
       ),
     ],
@@ -1429,32 +1438,90 @@ BoxDecoration _boardCellDecoration(
 }
 
 BoxDecoration _pieceBlockDecoration(Color base, {double radius = 4}) {
+  final palette = _piecePaletteFor(base);
   return BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [
-        _shiftColor(base, 0.22),
-        _shiftColor(base, 0.06),
-        _shiftColor(base, -0.08),
-        _shiftColor(base, -0.22),
-      ],
+      colors: palette.verticalFill,
       stops: const [0.0, 0.16, 0.62, 1.0],
     ),
     borderRadius: BorderRadius.circular(radius),
-    border: Border.all(color: _shiftColor(base, -0.48), width: 1.25),
+    border: Border.all(color: palette.outline, width: 1.25),
     boxShadow: [
       BoxShadow(
-        color: Colors.white.withValues(alpha: 0.28),
+        color: palette.topEdgeGlow,
         offset: const Offset(-0.8, -0.8),
         blurRadius: 0,
       ),
       BoxShadow(
-        color: Colors.black.withValues(alpha: 0.32),
+        color: palette.bottomEdgeShade,
         offset: const Offset(1.2, 1.3),
         blurRadius: 0,
       ),
     ],
+  );
+}
+
+class _BlockPalette {
+  const _BlockPalette({
+    required this.verticalFill,
+    required this.outline,
+    required this.topEdgeGlow,
+    required this.bottomEdgeShade,
+  });
+
+  final List<Color> verticalFill;
+  final Color outline;
+  final Color topEdgeGlow;
+  final Color bottomEdgeShade;
+}
+
+_BlockPalette _piecePaletteFor(Color base) {
+  final hsl = HSLColor.fromColor(base);
+  final hue = hsl.hue;
+
+  // Yellow blocks: brighter top cap and sharper dark base.
+  if (hue >= 40 && hue <= 75) {
+    return _BlockPalette(
+      verticalFill: [
+        _shiftColor(base, 0.26),
+        _shiftColor(base, 0.10),
+        _shiftColor(base, -0.10),
+        _shiftColor(base, -0.24),
+      ],
+      outline: _shiftColor(base, -0.50),
+      topEdgeGlow: Colors.white.withValues(alpha: 0.34),
+      bottomEdgeShade: Colors.black.withValues(alpha: 0.34),
+    );
+  }
+
+  // Red blocks: deeper shadow and stronger edge separation.
+  if (hue <= 20 || hue >= 345) {
+    return _BlockPalette(
+      verticalFill: [
+        _shiftColor(base, 0.18),
+        _shiftColor(base, 0.05),
+        _shiftColor(base, -0.07),
+        _shiftColor(base, -0.20),
+      ],
+      outline: _shiftColor(base, -0.55),
+      topEdgeGlow: Colors.white.withValues(alpha: 0.22),
+      bottomEdgeShade: Colors.black.withValues(alpha: 0.42),
+    );
+  }
+
+  // Orange/amber blocks.
+  return _BlockPalette(
+    verticalFill: [
+      _shiftColor(base, 0.22),
+      _shiftColor(base, 0.07),
+      _shiftColor(base, -0.08),
+      _shiftColor(base, -0.22),
+    ],
+    outline: _shiftColor(base, -0.52),
+    topEdgeGlow: Colors.white.withValues(alpha: 0.26),
+    bottomEdgeShade: Colors.black.withValues(alpha: 0.36),
   );
 }
 
