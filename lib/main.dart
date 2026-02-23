@@ -805,10 +805,7 @@ class _TrayWidget extends StatelessWidget {
                   onDragEnd: (_) => onDragEnd(),
                   feedback: Material(
                     type: MaterialType.transparency,
-                    child: Transform.scale(
-                      scale: 1.06,
-                      child: _FloatingPieceFeedback(piece: piece),
-                    ),
+                    child: _FloatingPieceFeedback(piece: piece),
                   ),
                   childWhenDragging: Opacity(
                     opacity: 0.25,
@@ -882,12 +879,7 @@ class _TrayPieceTile extends StatelessWidget {
             ),
           ),
           child: pieceValue == null
-              ? Center(
-                  child: Text(
-                    '사용됨',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
-                  ),
-                )
+              ? const SizedBox.expand()
               : Center(child: draggable ?? _PiecePreview(piece: pieceValue)),
         ),
       ),
@@ -902,29 +894,18 @@ class _FloatingPieceFeedback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF7A170E).withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
-        boxShadow: const [
-          BoxShadow(color: Colors.black54, blurRadius: 18, offset: Offset(0, 8)),
-        ],
-      ),
-      child: _PiecePreview(piece: piece, cellSize: 18),
-    );
+    return _PiecePreview(piece: piece);
   }
 }
 
 class _PiecePreview extends StatelessWidget {
-  const _PiecePreview({required this.piece, this.cellSize = 16});
+  const _PiecePreview({required this.piece});
 
   final PieceInstance piece;
-  final double cellSize;
 
   @override
   Widget build(BuildContext context) {
+    const cellSize = 16.0;
     return SizedBox(
       width: piece.shape.width * cellSize + 6,
       height: piece.shape.height * cellSize + 6,
