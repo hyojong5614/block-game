@@ -252,7 +252,9 @@ class _ClassicModePageState extends State<ClassicModePage> {
   Point<int>? _hoverAnchor;
   int? _draggingTrayIndex;
   Point<int>? _dragGrabCell;
+  Set<String> _recentPlacedCells = const {};
   Set<String> _recentClearedCells = const {};
+  Timer? _placeFlashTimer;
   Timer? _clearFlashTimer;
   String? _scoreGainText;
   bool _showScoreGain = false;
@@ -315,10 +317,21 @@ class _ClassicModePageState extends State<ClassicModePage> {
 
     setState(() {
       _hoverAnchor = null;
+      _recentPlacedCells = result.placedCells;
       _recentClearedCells = result.clearedCells;
       _scoreGainText = result.scoreGained > 0 ? '+${result.scoreGained}' : null;
       _showScoreGain = result.scoreGained > 0;
     });
+
+    _placeFlashTimer?.cancel();
+    if (result.placedCells.isNotEmpty) {
+      _placeFlashTimer = Timer(const Duration(milliseconds: 120), () {
+        if (!mounted) return;
+        setState(() {
+          _recentPlacedCells = const {};
+        });
+      });
+    }
 
     if (result.scoreGained > 0) {
       _scoreGainTimer?.cancel();
@@ -339,9 +352,10 @@ class _ClassicModePageState extends State<ClassicModePage> {
     if (result.cleared > 0 && mounted) {
       HapticFeedback.mediumImpact();
       _clearFlashTimer?.cancel();
-      _clearFlashTimer = Timer(const Duration(milliseconds: 220), () {
+          _clearFlashTimer = Timer(const Duration(milliseconds: 220), () {
         if (!mounted) return;
         setState(() {
+          _recentPlacedCells = const {};
           _recentClearedCells = const {};
         });
       });
@@ -373,6 +387,8 @@ class _ClassicModePageState extends State<ClassicModePage> {
                   setState(() {
                     _hoverAnchor = null;
                     _draggingTrayIndex = null;
+                    _dragGrabCell = null;
+                    _recentPlacedCells = const {};
                     _recentClearedCells = const {};
                     _scoreGainText = null;
                     _showScoreGain = false;
@@ -415,12 +431,12 @@ class _ClassicModePageState extends State<ClassicModePage> {
     if (!mounted) return;
     setState(() {
       _dragGrabCell = grabCell;
-      _game.selectedTrayIndex = trayIndex;
     });
   }
 
   @override
   void dispose() {
+    _placeFlashTimer?.cancel();
     _clearFlashTimer?.cancel();
     _scoreGainTimer?.cancel();
     super.dispose();
@@ -497,6 +513,7 @@ class _ClassicModePageState extends State<ClassicModePage> {
                                 _hoverAnchor = null;
                                 _draggingTrayIndex = null;
                                 _dragGrabCell = null;
+                                _recentPlacedCells = const {};
                                 _recentClearedCells = const {};
                                 _scoreGainText = null;
                                 _showScoreGain = false;
@@ -536,6 +553,7 @@ class _ClassicModePageState extends State<ClassicModePage> {
                               game: _game,
                             hoverAnchor: _hoverAnchor,
                             dragGrabCell: _dragGrabCell,
+                            recentPlacedCells: _recentPlacedCells,
                             recentClearedCells: _recentClearedCells,
                               onTapCell: _onBoardTap,
                               onHoverAnchor: _onBoardHover,
@@ -643,6 +661,7 @@ class _BoardWidget extends StatelessWidget {
     required this.game,
     required this.hoverAnchor,
     required this.dragGrabCell,
+    required this.recentPlacedCells,
     required this.recentClearedCells,
     required this.onTapCell,
     required this.onHoverAnchor,
@@ -652,6 +671,7 @@ class _BoardWidget extends StatelessWidget {
   final ClassicGameController game;
   final Point<int>? hoverAnchor;
   final Point<int>? dragGrabCell;
+  final Set<String> recentPlacedCells;
   final Set<String> recentClearedCells;
   final void Function(int x, int y) onTapCell;
   final void Function(Point<int>? anchor) onHoverAnchor;
@@ -688,8 +708,10 @@ class _BoardWidget extends StatelessWidget {
             if (local.dx >= constraints.maxWidth || local.dy >= constraints.maxHeight) {
               return null;
             }
-            final x = (local.dx / cellSize).floor() - grabbedCell.x;
-            final y = (local.dy / cellSize).floor() - grabbedCell.y;
+            // Snap using cell centers so the dragged piece aligns more naturally
+            // even when the finger lands near cell edges.
+            final x = ((local.dx / cellSize) - grabbedCell.x - 0.5).round();
+            final y = ((local.dy / cellSize) - grabbedCell.y - 0.5).round();
             if (x < 0 || y < 0 || x >= ClassicGameController.boardSize || y >= ClassicGameController.boardSize) {
               return null;
             }
@@ -702,6 +724,7 @@ class _BoardWidget extends StatelessWidget {
                 children: List.generate(ClassicGameController.boardSize, (x) {
                   final filled = game.board[y][x];
                   final isPreviewCell = preview?.contains('$x,$y') ?? false;
+                  final isPlacedFlashCell = recentPlacedCells.contains('$x,$y');
                   final isClearedFlashCell = recentClearedCells.contains('$x,$y');
                   return GestureDetector(
                     onTap: () => onTapCell(x, y),
@@ -723,6 +746,14 @@ class _BoardWidget extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(3),
                                 ),
                               )
+                            : isPlacedFlashCell
+                                ? Container(
+                                    margin: const EdgeInsets.all(1.5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.45),
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                  )
                             : null,
                       ),
                     ),
@@ -941,6 +972,7 @@ class TrayDragData {
 class PlacementResult {
   const PlacementResult({
     required this.placed,
+    this.placedCells = const {},
     this.cleared = 0,
     this.bestScoreUpdated = false,
     this.clearedCells = const {},
@@ -948,6 +980,7 @@ class PlacementResult {
   });
 
   final bool placed;
+  final Set<String> placedCells;
   final int cleared;
   final bool bestScoreUpdated;
   final Set<String> clearedCells;
@@ -1108,17 +1141,19 @@ class ClassicGameController {
 
     final scoreBefore = score;
 
+    final placedCells = <String>{};
     for (final c in piece.shape.cells) {
       board[anchorY + c.y][anchorX + c.x] = piece.color;
+      placedCells.add('${anchorX + c.x},${anchorY + c.y}');
     }
 
     final clearResult = _clearCompletedLines();
     final lineClearCells = clearResult.clearedCount;
-    final placedCells = piece.shape.cells.length;
+    final placedCellCount = piece.shape.cells.length;
     final lineBonus = lineClearCells * 10;
     combo = lineClearCells > 0 ? combo + 1 : 0;
     final comboBonus = lineClearCells > 0 ? combo * 5 : 0;
-    score += placedCells + lineBonus + comboBonus;
+    score += placedCellCount + lineBonus + comboBonus;
 
     final bestScoreUpdated = score > bestScore;
     if (bestScoreUpdated) {
@@ -1136,6 +1171,7 @@ class ClassicGameController {
     final scoreGained = score - scoreBefore;
     return PlacementResult(
       placed: true,
+      placedCells: placedCells,
       cleared: lineClearCells,
       bestScoreUpdated: bestScoreUpdated,
       clearedCells: clearResult.clearedCells,
